@@ -308,11 +308,11 @@ def get_or_create_university(name: str, country: str, db: Session) -> University
 @app.get("/api/universities", response_model=list[UniversityResponse])
 async def get_universities(
     country: Optional[str] = None,
-    degree: Optional[str] = None,
-    search: Optional[str] = None,
-    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
+    # Get user onboarding for filtering and personalized defaults
+    onboarding = db.query(Onboarding).filter(Onboarding.user_id == current_user.id).first()
+    
     # 1. Fetch from local DB
     local_query = db.query(University)
     if country:
@@ -320,17 +320,24 @@ async def get_universities(
     
     local_unis = local_query.all()
     
-    # 2. Fetch from external API ONLY if filters are present to avoid massive 2MB response from Hipolabs
+    # 2. Fetch from external API
     external_unis = []
     if country or search:
+        # User specified a filter, fetch only that
         external_unis = await fetch_external_universities(country=country, name=search)
+    elif not local_unis:
+        # DB is empty and no search! Fetch some defaults so it doesn't look empty.
+        default_search_country = "United States"
+        if onboarding and onboarding.preferred_countries:
+            # Take the first country from comma separated list
+            default_search_country = onboarding.preferred_countries.split(",")[0].strip()
+            
+        print(f"DEBUG: Local DB empty, fetching default universities for {default_search_country}")
+        external_unis = await fetch_external_universities(country=default_search_country)
     
     # Merge and deduplicate by name
     # We prioritize local unis for metadata
     seen_names = {u.name for u in local_unis}
-    
-    # Get user onboarding
-    onboarding = db.query(Onboarding).filter(Onboarding.user_id == current_user.id).first()
     
     result = []
     

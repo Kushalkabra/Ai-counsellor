@@ -52,7 +52,23 @@ const DiscoverPage = () => {
   }, [searchQuery]);
 
   const filteredUniversities = useMemo(() => {
-    return universities.filter(uni => {
+    console.log("DEBUG: DiscoverPage filtering started", {
+      total: universities.length,
+      activeTab,
+      countryFilter,
+      categoryFilter,
+      searchQuery
+    });
+
+    if (universities.length > 0) {
+      console.log("DEBUG: First university tag/country:", {
+        name: universities[0].name,
+        tag: universities[0].tag,
+        country: universities[0].country
+      });
+    }
+
+    const res = universities.filter(uni => {
       const matchesSearch = uni.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         uni.country.toLowerCase().includes(searchQuery.toLowerCase());
       const matchesTab = activeTab === "All Universities" ||
@@ -65,6 +81,9 @@ const DiscoverPage = () => {
 
       return matchesSearch && matchesTab && matchesCountry && matchesBudget && matchesCategory;
     });
+
+    console.log("DEBUG: DiscoverPage filtered count:", res.length);
+    return res;
   }, [universities, searchQuery, activeTab, countryFilter, budgetFilter, categoryFilter]);
 
   const countries = useMemo(() => {

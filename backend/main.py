@@ -319,6 +319,9 @@ def get_or_create_university(name: str, country: str, db: Session) -> University
 @app.get("/api/universities", response_model=list[UniversityResponse])
 async def get_universities(
     country: Optional[str] = None,
+    degree: Optional[str] = None,
+    search: Optional[str] = None,
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     # Get user onboarding for filtering and personalized defaults

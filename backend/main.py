@@ -2,10 +2,10 @@ from fastapi import FastAPI, Depends, HTTPException, status, Body
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
-from datetime import datetime, timedelta
 from typing import Optional, List, Union, Any
 import httpx
 import os
+import traceback
 from dotenv import load_dotenv
 
 from database import SessionLocal, engine, Base
@@ -59,7 +59,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-print(f"DEBUG: CORS Allowed Origins: {allowed_origins}")
+print(f"DEBUG: CORS Final Allowed List: {allowed_origins}")
 
 # OAuth2 scheme is defined in auth.py
 from auth import oauth2_scheme
@@ -153,10 +153,14 @@ async def google_auth(auth_data: GoogleAuthRequest, db: Session = Depends(get_db
         access_token = create_access_token(data={"sub": user.email})
         return {"access_token": access_token, "token_type": "bearer"}
 
-    except ValueError:
+    except Exception as e:
+        print("!!! GOOGLE AUTH ERROR !!!")
+        traceback.print_exc()
+        if isinstance(e, HTTPException):
+            raise e
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid Google token"
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Google Authentication Internal Error: {str(e)}"
         )
 
 @app.get("/api/auth/me", response_model=UserResponse)

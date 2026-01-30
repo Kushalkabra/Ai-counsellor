@@ -54,7 +54,7 @@ export const DashboardSidebar = ({ isOpen, setOpen }: { isOpen?: boolean, setOpe
         }}
         transition={{ duration: 0.3, ease: "easeOut" }}
         className={cn(
-          "fixed left-0 top-0 h-screen bg-card border-r border-border flex flex-col z-50 transition-all",
+          "fixed left-0 top-0 h-[100dvh] bg-card border-r border-border flex flex-col z-50 transition-all overflow-hidden",
           "lg:translate-x-0",
           !isOpen && "-translate-x-full lg:translate-x-0"
         )}
@@ -86,7 +86,7 @@ export const DashboardSidebar = ({ isOpen, setOpen }: { isOpen?: boolean, setOpe
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 p-4 space-y-1">
+        <nav className="flex-1 p-4 space-y-1 overflow-y-auto custom-scrollbar">
           {navItems.map((item, index) => {
             const isActive = location.pathname === item.path;
             return (

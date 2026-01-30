@@ -17,6 +17,7 @@ const ApplicationsPage = () => {
   const [activeUniId, setActiveUniId] = useState<string | null>(
     lockedUniversities.length > 0 ? lockedUniversities[0].id : null
   );
+  const [togglingDocIds, setTogglingDocIds] = useState<Set<number>>(new Set());
 
   const activeUni = lockedUniversities.find(u => u.id === activeUniId);
   const [documents, setDocuments] = useState<any[]>([]);
@@ -25,6 +26,65 @@ const ApplicationsPage = () => {
   const [loadingStrategy, setLoadingStrategy] = useState(false);
   const [sopContent, setSopContent] = useState<string | null>(null);
   const [generatingSop, setGeneratingSop] = useState(false);
+
+  const handleToggleDocument = async (docId: number, currentStatus: boolean) => {
+    if (togglingDocIds.has(docId)) return;
+
+    setTogglingDocIds(prev => new Set(prev).add(docId));
+    try {
+      const res = await applicationAPI.updateDocument(docId.toString(), !currentStatus);
+      setDocuments(prev => prev.map(d => d.id === docId ? res.data : d));
+    } catch (e) {
+      console.error("Failed to toggle document status", e);
+    } finally {
+      setTogglingDocIds(prev => {
+        const next = new Set(prev);
+        next.delete(docId);
+        return next;
+      });
+    }
+  };
+
+  const getTimelineData = () => {
+    const completedCount = documents.filter(d => d.is_completed).length;
+    const totalCount = documents.length || 1;
+    const progress = (completedCount / totalCount) * 100;
+    const intakeYearStr = userProfile?.targetIntake || (new Date().getFullYear() + 1).toString();
+    const intakeYear = parseInt(intakeYearStr.toString());
+
+    type TimelineStep = { title: string; date: string; desc: string; status: "completed" | "current" | "upcoming" };
+
+    let currentPhase: Omit<TimelineStep, 'status'> = { title: "Getting Started", date: "Month 1", desc: "Setting up your checklist" };
+    let nextPhase: Omit<TimelineStep, 'status'> = { title: "Document Collection", date: "Month 2-3", desc: "Gathering academic records" };
+    let finalPhase: Omit<TimelineStep, 'status'> = { title: "Review & Submission", date: `By Oct ${intakeYear - 1}`, desc: "Final portal submission" };
+
+    let currentStatus: "completed" | "current" = progress > 0 ? "completed" : "current";
+    let nextStatus: "completed" | "current" | "upcoming" = "upcoming";
+    let finalStatus: "upcoming" = "upcoming";
+
+    if (progress >= 100) {
+      currentStatus = "completed";
+      nextStatus = "current";
+      currentPhase = { title: "Preparation Complete", date: "Done", desc: "All documents are ready" };
+      nextPhase = { title: "Review & Submission", date: "Active", desc: "Final portal check" };
+      finalPhase = { title: "Visa & Enrollment", date: `By May ${intakeYear}`, desc: "Booking your flight" };
+    } else if (progress > 50) {
+      currentStatus = "completed";
+      nextStatus = "current";
+      currentPhase = { title: "Document Collection", date: "Done", desc: "Most records gathered" };
+      nextPhase = { title: "Review & Refine", date: "Active", desc: "Polishing your SOP and LORs" };
+    } else if (progress > 0) {
+      currentStatus = "current";
+      currentPhase = { title: "Document Collection", date: "Active", desc: "Requesting transcripts & scores" };
+      nextPhase = { title: "SOP Drafting", date: "Next 2 Weeks", desc: "Starting your AI SOP draft" };
+    }
+
+    return [
+      { ...currentPhase, status: currentStatus },
+      { ...nextPhase, status: nextStatus },
+      { ...finalPhase, status: finalStatus },
+    ];
+  };
 
   const handleGenerateSop = async () => {
     if (!activeUni) return;
@@ -237,20 +297,27 @@ const ApplicationsPage = () => {
                                 <motion.div
                                   key={doc.id}
                                   whileHover={{ y: -2 }}
+                                  whileTap={{ scale: 0.98 }}
+                                  onClick={() => handleToggleDocument(doc.id, doc.is_completed)}
                                   className={cn(
-                                    "flex items-center gap-4 p-4 rounded-xl border transition-all cursor-default",
+                                    "flex items-center gap-4 p-4 rounded-xl border transition-all cursor-pointer group/doc",
                                     isDone
                                       ? "bg-success-muted/30 border-success/30"
-                                      : "bg-secondary/30 border-border/50 hover:border-primary/30"
+                                      : "bg-secondary/30 border-border/50 hover:border-primary/30",
+                                    togglingDocIds.has(doc.id) && "opacity-60 cursor-not-allowed"
                                   )}
                                 >
                                   <div
                                     className={cn(
-                                      "w-10 h-10 rounded-xl flex items-center justify-center",
+                                      "w-10 h-10 rounded-xl flex items-center justify-center transition-transform group-hover/doc:scale-110",
                                       isDone ? "bg-success/20 text-success" : "bg-primary/10 text-primary"
                                     )}
                                   >
-                                    <Icon className="h-5 w-5" />
+                                    {togglingDocIds.has(doc.id) ? (
+                                      <Loader2 className="h-4 w-4 animate-spin" />
+                                    ) : (
+                                      <Icon className="h-5 w-5" />
+                                    )}
                                   </div>
                                   <div className="flex-1 min-w-0">
                                     <p className="font-medium text-foreground text-sm truncate">{doc.name}</p>
@@ -260,10 +327,10 @@ const ApplicationsPage = () => {
                                   </div>
                                   <div
                                     className={cn(
-                                      "w-6 h-6 rounded-full flex items-center justify-center transition-colors",
+                                      "w-6 h-6 rounded-full flex items-center justify-center transition-all",
                                       isDone
-                                        ? "bg-success text-success-foreground"
-                                        : "border-2 border-border"
+                                        ? "bg-success text-success-foreground scale-110"
+                                        : "border-2 border-border group-hover/doc:border-primary/50"
                                     )}
                                   >
                                     {isDone && <Check className="h-3.5 w-3.5" />}
@@ -323,11 +390,7 @@ const ApplicationsPage = () => {
                         <div className="relative pl-2">
                           <div className="absolute left-[17px] top-3 bottom-3 w-0.5 bg-border/50" />
                           <div className="space-y-8">
-                            {[
-                              { date: "Current Phase", title: "Document Collection", status: "current", desc: "Gathering academic records" },
-                              { date: "Next 2 Weeks", title: "Review & Polish", status: "upcoming", desc: "Refining Statement of Purpose" },
-                              { date: "Next Month", title: "Submission Window", status: "upcoming", desc: "Official portal opens" }
-                            ].map((item, index) => (
+                            {getTimelineData().map((item, index) => (
                               <div key={index} className="flex gap-4 relative">
                                 <div
                                   className={cn(
@@ -342,7 +405,7 @@ const ApplicationsPage = () => {
                                   {item.status === "completed" ? (
                                     <Check className="h-3 w-3" />
                                   ) : item.status === "current" ? (
-                                    <div className="w-2 h-2 rounded-full bg-white" />
+                                    <div className="w-2 h-2 rounded-full bg-white animate-pulse" />
                                   ) : null}
                                 </div>
                                 <div className="flex-1">
@@ -350,7 +413,7 @@ const ApplicationsPage = () => {
                                   <p className={cn("font-semibold text-sm", item.status === "current" ? "text-foreground" : "text-muted-foreground")}>
                                     {item.title}
                                   </p>
-                                  <p className="text-xs text-muted-foreground mt-0.5">{item.desc}</p>
+                                  <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">{item.desc}</p>
                                 </div>
                               </div>
                             ))}

@@ -1,0 +1,49 @@
+import { Navigate, useLocation } from "react-router-dom";
+import { useApp } from "@/context/AppContext";
+import { Loader2 } from "lucide-react";
+
+interface ProtectedRouteProps {
+    children: React.ReactNode;
+    requireOnboarding?: boolean;
+}
+
+export const ProtectedRoute = ({ children, requireOnboarding = true }: ProtectedRouteProps) => {
+    const { token, onboardingCompleted, isLoading, isAuthenticated: contextAuth } = useApp();
+    const location = useLocation();
+
+    // Debugging to see what's happening during access
+    console.log("ProtectedRoute - Auth Check:", {
+        token: token ? (token.substring(0, 5) + "...") : null,
+        isLoading,
+        contextAuth,
+        path: location.pathname
+    });
+
+    if (isLoading) {
+        return (
+            <div className="min-h-screen bg-background flex items-center justify-center">
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            </div>
+        );
+    }
+
+    // Robust authentication check
+    const isAuthenticated = !!token && token !== 'undefined' && token !== 'null';
+
+    if (!isAuthenticated) {
+        console.warn("Protected Route - Unauthorized access attempt, redirecting to /login");
+        return <Navigate to="/login" state={{ from: location }} replace />;
+    }
+
+    // If onboarding is required but not completed
+    if (requireOnboarding && onboardingCompleted === false) {
+        return <Navigate to="/onboarding" replace />;
+    }
+
+    // If user is already onboarded but tries to access onboarding page
+    if (!requireOnboarding && onboardingCompleted === true) {
+        return <Navigate to="/dashboard" replace />;
+    }
+
+    return <>{children}</>;
+};

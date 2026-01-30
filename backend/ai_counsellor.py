@@ -1,0 +1,344 @@
+import requests
+import json
+import os
+import re
+from dotenv import load_dotenv
+from typing import List, Optional, Dict, Any
+from sqlalchemy.orm import Session
+from models import Onboarding, University, ShortlistedUniversity, LockedUniversity, Todo, User
+from schemas import AIAction, AICounsellorResponse
+
+load_dotenv()
+
+class AICounsellorService:
+    def __init__(self):
+        # Try Groq first (free and fast), fallback to Gemini if available
+        self.groq_api_key = os.getenv("GROQ_API_KEY")
+        self.gemini_api_key = os.getenv("GEMINI_API_KEY")
+        
+        if self.groq_api_key:
+            self.provider = "groq"
+            self.api_key = self.groq_api_key
+            # Groq API endpoint - using Llama 3.3 70B (free tier)
+            self.base_url = "https://api.groq.com/openai/v1/chat/completions"
+            self.model = "llama-3.3-70b-versatile"
+        elif self.gemini_api_key:
+            self.provider = "gemini"
+            self.api_key = self.gemini_api_key
+            self.base_url = "https://generativelanguage.googleapis.com/v1/models/gemini-2.0-flash:generateContent"
+            self.model = "gemini-2.0-flash"
+        else:
+            raise ValueError("No API key found. Set either GROQ_API_KEY or GEMINI_API_KEY in .env file")
+    
+    async def get_response(
+        self,
+        user_message: str,
+        user_profile: Onboarding,
+        shortlisted_universities: List[int],
+        locked_universities: List[int],
+        db: Session,
+        current_user: User
+    ) -> Dict[str, Any]:
+        
+        # 1. Determine Current Stage
+        current_stage = self._determine_stage(shortlisted_universities, locked_universities)
+        
+        # 2. Build Context
+        profile_context = self._build_profile_context(user_profile)
+        university_context = self._build_university_context(shortlisted_universities, locked_universities, db)
+        available_universities = self._build_available_universities(db)
+        
+        # 3. Construct System Prompt (Strict JSON)
+        system_prompt = f"""You are an expert AI Study Abroad Counsellor. Your goal is to guide the student towards admission by taking CONCRETE ACTIONS.
+        
+You are NOT a chatbot. You are a decision engine.
+Your output must be strict JSON. Do not output markdown blocks or plain text.
+
+==== STUDENT PROFILE ====
+{profile_context}
+
+==== CURRENT STAGE: {current_stage} ====
+Rules for this stage:
+- PROFILE_BUILDING: Analyze profile, identify gaps. NO shortlisting/locking.
+- UNIVERSITY_DISCOVERY: Recommend & Shortlist universities. NO locking.
+- UNIVERSITY_FINALIZATION: Select final university to Lock.
+- APPLICATION_PREPARATION: Generate tasks for locked university.
+
+==== CURRENT STATUS ====
+{university_context}
+
+==== AVAILABLE UNIVERSITIES (SAMPLE) ====
+{available_universities}
+
+==== AVAILABLE ACTIONS ====
+1. shortlist_university: Save a university to shortlist. Allowed if not already shortlisted.
+   Payload: {{"university_id": <int>}}
+2. lock_university: Lock a university for final application. 
+   Payload: {{"university_id": <int>}}
+3. create_task: Add a todo task.
+   Payload: {{"title": "<string>", "description": "<string>"}}
+4. none: Just answer the question / providing guidance.
+
+==== RESPONSE FORMAT (JSON ONLY) ====
+{{
+  "message": "Your natural language response. If taking an action, mention it clearly (e.g., 'I've added Harvard to your shortlist'). Use Markdown.",
+  "action": {{
+    "type": "shortlist_university | lock_university | create_task | none",
+    "payload": {{ ... }}
+  }},
+  "reasoning": "Internal logic"
+}}
+
+==== GUIDELINES ====
+- ALWAYS use the ID provided in the AVAILABLE UNIVERSITIES list.
+- If the user says 'Add this to my list' or 'Interested in X', use shortlist_university.
+- If the user says 'I want to apply here' or 'Lock this', use lock_university.
+- You can only LOCK one university at a time.
+- If the user is just asking questions, use action: {{"type": "none", "payload": {{}}}}.
+
+==== USER INPUT ====
+{user_message}
+"""
+
+        # 3. Call AI
+        try:
+            response_text = self._call_llm(system_prompt)
+            print(f"DEBUG: Raw LLM Response: {response_text}") # Debug log
+            
+            # 4. Parse JSON
+            parsed_response = self._parse_json_response(response_text)
+        except Exception as e:
+            # Fallback for LLM failure
+            return {
+                "message": f"I'm having trouble thinking right now. Error: {str(e)}",
+                "action": None,
+                "reasoning": "LLM Failure",
+                "updated_stage": current_stage
+            }
+            
+        # 5. Execute Action
+        action_result = self._execute_action(parsed_response.get("action"), current_stage, db, current_user)
+        
+        # 6. Fetch Updated State
+        updated_state = self._get_updated_state(db, current_user)
+        
+        # 7. Construct Final Response
+        return {
+            "message": parsed_response.get("message"),
+            "action": parsed_response.get("action"),
+            "reasoning": parsed_response.get("reasoning"),
+            **updated_state # Merges updated lists
+        }
+
+    def _call_llm(self, prompt: str) -> str:
+        """Handles API call to Groq or Gemini"""
+        try:
+            if self.provider == "groq":
+                headers = {
+                    "Authorization": f"Bearer {self.api_key}",
+                    "Content-Type": "application/json"
+                }
+                payload = {
+                    "model": self.model,
+                    "messages": [{"role": "user", "content": prompt}],
+                    "temperature": 0.3, # Lower temperature for valid JSON
+                    "response_format": {"type": "json_object"} 
+                }
+                response = requests.post(self.base_url, headers=headers, json=payload, timeout=30)
+                
+                if response.status_code != 200:
+                    raise Exception(f"Groq Error: {response.text}")
+                    
+                return response.json()['choices'][0]['message']['content']
+                
+            else: # Gemini
+                headers = {"Content-Type": "application/json"}
+                payload = {
+                    "contents": [{"parts": [{"text": prompt}]}],
+                    "generationConfig": {"response_mime_type": "application/json"}
+                }
+                response = requests.post(f"{self.base_url}?key={self.api_key}", headers=headers, json=payload, timeout=30)
+                
+                if response.status_code != 200:
+                    raise Exception(f"Gemini Error: {response.text}")
+                    
+                return response.json()['candidates'][0]['content']['parts'][0]['text']
+        except Exception as e:
+            raise e
+
+    def _parse_json_response(self, raw_text: str) -> Dict[str, Any]:
+        """Robuts JSON parsing from LLM output"""
+        try:
+            # Remove markdown code blocks if present
+            clean_text = re.sub(r'```json\s*', '', raw_text)
+            clean_text = re.sub(r'```\s*', '', clean_text)
+            return json.loads(clean_text)
+        except json.JSONDecodeError:
+            # Fallback if invalid JSON
+            return {
+                "message": raw_text,
+                "action": {"type": "none", "payload": {}},
+                "reasoning": "Failed to parse structured response"
+            }
+
+    def _execute_action(self, action: Dict[str, Any], stage: str, db: Session, user: User):
+        """Executes the action on the database"""
+        if not action or action.get("type") == "none":
+            return
+            
+        action_type = action.get("type")
+        payload = action.get("payload", {})
+        
+        # STAGE ENFORCEMENT
+        if action_type == "shortlist_university":
+            # Allowed in DISCOVERY
+            # Logic: Add to shortlist
+            uni_id = payload.get("university_id")
+            if uni_id:
+                existing = db.query(ShortlistedUniversity).filter_by(user_id=user.id, university_id=uni_id).first()
+                if not existing:
+                    db.add(ShortlistedUniversity(user_id=user.id, university_id=uni_id))
+                    db.commit()
+
+        elif action_type == "lock_university":
+            # Allowed in FINALIZATION
+            uni_id = payload.get("university_id")
+            if uni_id:
+                 # Check if shortlisted first (implied logic usually)
+                existing_lock = db.query(LockedUniversity).filter_by(user_id=user.id).first()
+                if not existing_lock:
+                    db.add(LockedUniversity(user_id=user.id, university_id=uni_id))
+                    # Trigger auto-tasks
+                    from services import generate_application_todos
+                    generate_application_todos(user.id, uni_id, db)
+                    db.commit()
+
+        elif action_type == "create_task":
+             # Allowed in PREPARATION
+             title = payload.get("title")
+             desc = payload.get("description", "")
+             if title:
+                 db.add(Todo(user_id=user.id, title=title, description=desc))
+                 db.commit()
+
+    async def generate_sop(self, user_profile: Onboarding, university: University) -> str:
+        """Generates a tailored Statement of Purpose"""
+        prompt = f"""
+        ACT AS: An expert study abroad consultant and professional writer.
+        TASK: Write a compelling Statement of Purpose (SOP) for a student applying to {university.name}.
+        
+        STUDENT PROFILE:
+        - Degree: {user_profile.current_education_level}
+        - GPA: {user_profile.gpa}
+        - Target Intake: {user_profile.target_intake_year}
+        
+        UNIVERSITY DETAILS:
+        - Name: {university.name}
+        - Country: {university.country}
+        - Program: {university.field_of_study} ({university.degree_type})
+        
+        INSTRUCTIONS:
+        1. Write a structured 500-word SOP.
+        2. Introduction: Hook the reader, mention passion for {university.field_of_study}.
+        3. Academic Background: Highlight GPA and relevant skills.
+        4. Why This University: specific reasons (curriculum, research, faculty).
+        5. Future Goals: How this degree helps career.
+        6. Conclusion: Strong closing.
+        7. OUTPUT FORMAT: Plain text, well-structured paragraphs. No JSON.
+        """
+        
+        try:
+            # We need to force non-JSON response for SOP if possible, or just extract content
+            # The _call_llm method currently forces JSON format for Groq/Gemini.
+            # We should probably modify _call_llm or override it here. 
+            # For simplicity, let's ask for JSON with a "content" field to keep _call_llm compatible.
+            
+            json_prompt = prompt + '\n\nRESPONSE FORMAT: JSON with a single field "sop_content" containing the full text.'
+            
+            response_json = self._call_llm(json_prompt)
+            parsed = self._parse_json_response(response_json)
+            return parsed.get("sop_content", "Failed to generate SOP content.")
+            
+        except Exception as e:
+            return f"Error generating SOP: {str(e)}"
+    async def generate_strategy(self, user_profile: Onboarding, university: University) -> List[str]:
+        """Generates 4 personalized admission strategy points"""
+        prompt = f"""
+        ACT AS: An expert study abroad consultant.
+        TASK: Create a winning admission strategy for a student applying to {university.name}.
+        
+        STUDENT PROFILE:
+        - Degree: {user_profile.current_education_level} in {user_profile.degree_major} ({user_profile.graduation_year})
+        - GPA: {user_profile.gpa}
+        - Target Intake: {user_profile.target_intake_year}
+        - Experience: {user_profile.sop_status} (SOP status implies progress)
+        
+        UNIVERSITY DETAILS:
+        - Name: {university.name}
+        - Country: {university.country}
+        - Program: {university.field_of_study} ({university.degree_type})
+        - Selectivity: {university.acceptance_rate}
+        
+        INSTRUCTIONS:
+        1. Generate EXACTLY 4 distinct, actionable strategy points.
+        2. Points should be specific to the university's values (research, leadership, diversity) and the student's profile (highlighting strengths, mitigating weaknesses).
+        3. Do NOT include generic advice like "study hard". 
+        4. Focus on SOP angles, LOR selection, unique profile pitching, or specific things to mention in application.
+        5. OUTPUT FORMAT: JSON with a single field "strategy_points" which is a list of 4 strings.
+        """
+        
+        try:
+            response_json = self._call_llm(prompt)
+            parsed = self._parse_json_response(response_json)
+            points = parsed.get("strategy_points", [])
+            # Fallback if list is empty or wrong format
+            if not points or not isinstance(points, list):
+                return [
+                    f"Tailor your SOP to match {university.name}'s specific research in {university.field_of_study}.",
+                    "Secure LORs that highlight your technical project experience.",
+                    "Demonstrate leadership impacting your local community.",
+                    "Submit your application early to show strong interest."
+                ]
+            return points[:4] # Ensure max 4
+            
+        except Exception as e:
+            print(f"Error generating strategy: {e}")
+            return [
+                "Tailor your SOP to the program's specific strengths.",
+                "Highlight relevant academic projects.",
+                "Ensure your LORs are from credible academic sources.",
+                "Review the specific admission requirements carefully."
+            ]
+    
+    def _determine_stage(self, shortlisted: List[int], locked: List[int]) -> str:
+        if locked: return "APPLICATION_PREPARATION"
+        if shortlisted: return "UNIVERSITY_FINALIZATION"
+        return "UNIVERSITY_DISCOVERY"
+
+    def _get_updated_state(self, db: Session, user: User) -> Dict[str, Any]:
+        shortlisted = db.query(ShortlistedUniversity).filter_by(user_id=user.id).all()
+        locked = db.query(LockedUniversity).filter_by(user_id=user.id).all()
+        tasks = db.query(Todo).filter_by(user_id=user.id).all()
+        
+        return {
+            "updated_stage": self._determine_stage([s.university_id for s in shortlisted], [l.university_id for l in locked]),
+            "shortlisted_universities": [s.university_id for s in shortlisted],
+            "locked_universities": [l.university_id for l in locked],
+            "tasks": [{"id": t.id, "title": t.title, "status": "done" if t.completed else "pending"} for t in tasks]
+        }
+
+    # Helpers
+    def _build_profile_context(self, profile: Onboarding) -> str:
+        return f"""GPA: {profile.gpa}, Degree: {profile.intended_degree}, Field: {profile.field_of_study}, 
+        Budget: ${profile.budget_per_year}, Exams: {profile.ielts_toefl_status}"""
+        
+    def _build_university_context(self, short: List[int], locked: List[int], db: Session) -> str:
+        s_objs = db.query(University).filter(University.id.in_(short)).all() if short else []
+        l_objs = db.query(University).filter(University.id.in_(locked)).all() if locked else []
+        
+        return f"""Shortlisted: {', '.join([u.name for u in s_objs])}
+        Locked: {', '.join([u.name for u in l_objs])}"""
+
+    def _build_available_universities(self, db: Session) -> str:
+        unis = db.query(University).limit(15).all()
+        return "\n".join([f"ID: {u.id} | {u.name} | {u.country} | Cost: ${u.tuition_fee} | Acceptance: {u.acceptance_rate}" for u in unis])

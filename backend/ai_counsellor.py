@@ -46,48 +46,62 @@ class AICounsellorService:
         # 2. Build Context
         profile_context = self._build_profile_context(user_profile)
         university_context = self._build_university_context(shortlisted_universities, locked_universities, db)
-        available_universities = self._build_available_universities(db)
+        available_universities = self._build_available_universities(db, user_profile)
         
         # 3. Construct System Prompt (Strict JSON)
         system_prompt = f"""You are an expert AI Study Abroad Counsellor. Your goal is to guide the student towards admission by taking CONCRETE ACTIONS.
         
-You are NOT a chatbot. You are a decision engine.
+You are NOT a simple chatbot. You are a Proactive Decision Engine and Academic Analyst.
 Your output must be strict JSON. Do not output markdown blocks or plain text.
+
+==== MISSION ====
+1. ANALYZE the student's profile (GPA, Degree, Budget) against available universities.
+2. RECOMMEND specific universities by their ID. Always suggest 3-5 universities when asked for advice.
+3. TAKE ACTIONS: Automatically shortlist universities if the user shows interest, and lock a university when they decide to apply.
 
 ==== STUDENT PROFILE ====
 {profile_context}
 
 ==== CURRENT STAGE: {current_stage} ====
-Rules for this stage:
-- PROFILE_BUILDING: Analyze profile, identify gaps. NO shortlisting/locking.
-- UNIVERSITY_DISCOVERY: Recommend & Shortlist universities. NO locking.
-- UNIVERSITY_FINALIZATION: Select final university to Lock.
-- APPLICATION_PREPARATION: Generate tasks for locked university.
+Context-aware guidance:
+- UNIVERSITY_DISCOVERY: Focus on finding the best fit. Suggest shortlisting 3-5 options.
+- UNIVERSITY_FINALIZATION: Help the user compare their shortlist and pick ONE to lock.
+- APPLICATION_PREPARATION: Focus on the locked university. Generate tasks for SOP, LORs, etc.
 
 ==== CURRENT STATUS ====
 {university_context}
 
-==== AVAILABLE UNIVERSITIES (SAMPLE) ====
+==== AVAILABLE UNIVERSITIES (MATCHED TO PROFILE) ====
 {available_universities}
 
-==== AVAILABLE ACTIONS ====
-1. shortlist_university: Save a university to shortlist. Allowed if not already shortlisted.
+==== AVAILABLE ACTIONS (USE SPARINGLY BUT DECISIVELY) ====
+1. shortlist_university: Save a university to the student's list. 
    Payload: {{"university_id": <int>}}
-2. lock_university: Lock a university for final application. 
+2. lock_university: Set the final university for application. Only one can be locked at a time.
    Payload: {{"university_id": <int>}}
-3. create_task: Add a todo task.
+3. create_task: Add a custom to-do for the student.
    Payload: {{"title": "<string>", "description": "<string>"}}
-4. none: Just answer the question / providing guidance.
+4. none: Use this ONLY if you are just answering a general question without needing a system action.
 
 ==== RESPONSE FORMAT (JSON ONLY) ====
 {{
-  "message": "Your natural language response. If taking an action, mention it clearly (e.g., 'I've added Harvard to your shortlist'). Use Markdown.",
+  "message": "Your response in Markdown. Be concise but analytical. If recommending, explain WHY based on GPA/Budget. If shortlisting/locking, confirm it clearly.",
   "action": {{
     "type": "shortlist_university | lock_university | create_task | none",
     "payload": {{ ... }}
   }},
-  "reasoning": "Internal logic"
+  "reasoning": "Brief internal logic for your decision"
 }}
+
+==== CRITICAL RULES ====
+- ALWAYS list the University ID when recommending.
+- If the user says anything like 'Analyze universities for me' or 'What are my options?', you MUST pick IDs from the list below and provide a detailed analysis.
+- If the user expresses preference for a specific university in the list, use 'shortlist_university' immediately.
+- If the user says 'I want to apply to [Uni]', use 'lock_university'.
+
+==== USER INPUT ====
+{user_message}
+"""
 
 ==== GUIDELINES ====
 - ALWAYS use the ID provided in the AVAILABLE UNIVERSITIES list.
@@ -208,6 +222,11 @@ Rules for this stage:
                 existing_lock = db.query(LockedUniversity).filter_by(user_id=user.id).first()
                 if not existing_lock:
                     db.add(LockedUniversity(user_id=user.id, university_id=uni_id))
+                    # Also ensure it is shortlisted
+                    short = db.query(ShortlistedUniversity).filter_by(user_id=user.id, university_id=uni_id).first()
+                    if not short:
+                        db.add(ShortlistedUniversity(user_id=user.id, university_id=uni_id))
+                    
                     # Trigger auto-tasks
                     from services import generate_application_todos
                     generate_application_todos(user.id, uni_id, db)
@@ -339,6 +358,25 @@ Rules for this stage:
         return f"""Shortlisted: {', '.join([u.name for u in s_objs])}
         Locked: {', '.join([u.name for u in l_objs])}"""
 
-    def _build_available_universities(self, db: Session) -> str:
-        unis = db.query(University).limit(15).all()
-        return "\n".join([f"ID: {u.id} | {u.name} | {u.country} | Cost: ${u.tuition_fee} | Acceptance: {u.acceptance_rate}" for u in unis])
+    def _build_available_universities(self, db: Session, profile: Onboarding) -> str:
+        # Fetch universities that match user's preferred countries
+        query = db.query(University)
+        
+        pref_countries = []
+        if profile.preferred_countries:
+            pref_countries = [c.strip() for c in profile.preferred_countries.split(",")]
+            # Filter specifically for these countries
+            query = query.filter(University.country.in_(pref_countries))
+        
+        # Get matching unis
+        matches = query.limit(20).all()
+        
+        # If we don't have enough matches, add some generic top ones
+        if len(matches) < 10:
+            others = db.query(University).filter(~University.id.in_([u.id for u in matches])).limit(10).all()
+            matches.extend(others)
+            
+        return "\n".join([
+            f"ID: {u.id} | {u.name} | {u.country} | Cost: ${u.tuition_fee}/yr | Acceptance: {u.acceptance_rate}% | Ranking: #{u.ranking}" 
+            for u in matches
+        ])

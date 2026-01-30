@@ -78,6 +78,15 @@ const OnboardingPage = () => {
         sop_status: "Not started"
     });
 
+    const normalizeCountryName = (c: string) => {
+        const trimmed = c.trim();
+        if (trimmed.toLowerCase() === 'usa') return 'USA';
+        if (trimmed.toLowerCase() === 'uk') return 'UK';
+        return trimmed.split(' ').map(word =>
+            word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
+        ).join(' ');
+    };
+
     const handleAiSend = (overrideValue?: string) => {
         const val = overrideValue || aiInput;
         if (!val.trim() && !overrideValue) return;
@@ -91,7 +100,7 @@ const OnboardingPage = () => {
         setFormData(prev => {
             const updated = { ...prev };
             if (question.field === 'preferred_countries') {
-                updated.preferred_countries = val.split(',').map(c => c.trim());
+                updated.preferred_countries = val.split(',').map(c => normalizeCountryName(c));
             } else {
                 (updated as any)[question.field] = question.type === 'number' ? parseFloat(val) : val;
             }

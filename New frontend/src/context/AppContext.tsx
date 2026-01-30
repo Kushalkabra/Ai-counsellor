@@ -112,12 +112,24 @@ export function AppProvider({ children }: { children: ReactNode }) {
                 const onboardingRes = await onboardingAPI.get();
                 setOnboardingCompleted(true);
 
+                const normalizeCountryName = (c: string) => {
+                    const trimmed = c.trim();
+                    if (!trimmed) return '';
+                    if (trimmed.toLowerCase() === 'usa') return 'USA';
+                    if (trimmed.toLowerCase() === 'uk') return 'UK';
+                    return trimmed.split(' ').map(word =>
+                        word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
+                    ).join(' ');
+                };
+
                 // Map onboarding data to UserProfile
                 const profile: UserProfile = {
                     degree: onboardingRes.data.current_education_level || '',
                     gpa: onboardingRes.data.gpa?.toString() || '',
                     targetIntake: onboardingRes.data.target_intake_year?.toString() || '',
-                    countries: onboardingRes.data.preferred_countries?.split(',') || [],
+                    countries: (onboardingRes.data.preferred_countries?.split(',') || [])
+                        .map((c: string) => normalizeCountryName(c))
+                        .filter((c: string) => c !== ''),
                     budgetRange: onboardingRes.data.budget_per_year ? `$${onboardingRes.data.budget_per_year}/yr` : '',
                     examsCompleted: [],
                     sopStatus: (onboardingRes.data.sop_status as any) || 'not-started',

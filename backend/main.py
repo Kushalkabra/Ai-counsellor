@@ -6,6 +6,7 @@ from typing import Optional, List, Union, Any
 import httpx
 import os
 import traceback
+from datetime import datetime
 from dotenv import load_dotenv
 
 from database import SessionLocal, engine, Base
@@ -47,7 +48,7 @@ app = FastAPI(title="AI Counsellor API", version="1.0.0")
 
 # CORS middleware
 # CORS middleware
-raw_origins = os.getenv("ALLOWED_ORIGINS", "http://localhost:3000,http://localhost:3001,http://localhost:5173,http://localhost:8080").split(",")
+raw_origins = os.getenv("ALLOWED_ORIGINS", "http://localhost:3000,http://localhost:3001,http://localhost:5173,http://localhost:8080,https://ai-counsellor-two.vercel.app,https://ai-counsellor-vur1.onrender.com").split(",")
 allowed_origins = []
 for origin in raw_origins:
     o = origin.strip().rstrip("/")

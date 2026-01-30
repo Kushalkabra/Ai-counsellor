@@ -61,17 +61,28 @@ const ProfilePage = () => {
     const handleSave = async () => {
         setIsSaving(true);
         try {
+            // Helper for safe numeric conversion
+            const safeParseFloat = (val: string) => {
+                const parsed = parseFloat(val);
+                return isNaN(parsed) ? null : parsed;
+            };
+
+            const safeParseInt = (val: string) => {
+                const parsed = parseInt(val);
+                return isNaN(parsed) ? null : parsed;
+            };
+
             const apiData = {
                 current_education_level: formData.degree,
-                gpa: parseFloat(formData.gpa),
-                target_intake_year: parseInt(formData.targetIntake),
+                gpa: safeParseFloat(formData.gpa),
+                target_intake_year: safeParseInt(formData.targetIntake),
                 preferred_countries: formData.countries,
-                budget_per_year: parseInt(formData.budgetRange),
-                field_of_study: "General", // Keeping it consistent
+                budget_per_year: safeParseFloat(formData.budgetRange),
+                field_of_study: "General",
                 ielts_toefl_status: formData.examStatus === "done" ? "Completed" : formData.examStatus === "in-progress" ? "In progress" : "Not started",
-                ielts_toefl_score: formData.ieltsScore ? parseFloat(formData.ieltsScore) : null,
+                ielts_toefl_score: safeParseFloat(formData.ieltsScore),
                 gre_gmat_status: formData.examStatus === "done" ? "Completed" : formData.examStatus === "in-progress" ? "In progress" : "Not started",
-                gre_gmat_score: formData.greScore ? parseFloat(formData.greScore) : null,
+                gre_gmat_score: safeParseFloat(formData.greScore),
                 sop_status: formData.sopStatus,
             };
 
@@ -80,14 +91,14 @@ const ProfilePage = () => {
             // Map back to AppContext UserProfile
             setUserProfile({
                 degree: res.data.current_education_level,
-                gpa: res.data.gpa.toString(),
-                targetIntake: res.data.target_intake_year.toString(),
-                countries: res.data.preferred_countries.split(",").map((c: string) => c.trim()),
-                budgetRange: `$${res.data.budget_per_year}/yr`,
-                examsCompleted: [], // Preserving existing behavior
+                gpa: res.data.gpa?.toString() || "",
+                targetIntake: res.data.target_intake_year?.toString() || "",
+                countries: res.data.preferred_countries ? res.data.preferred_countries.split(",").map((c: string) => c.trim()) : [],
+                budgetRange: res.data.budget_per_year ? `$${res.data.budget_per_year}/yr` : "",
+                examsCompleted: [],
                 sopStatus: res.data.sop_status,
-                academicStrength: formData.academicStrength as any, // Preserving frontend logic
-                examStatus: res.data.exam_status || formData.examStatus as any,
+                academicStrength: formData.academicStrength as any,
+                examStatus: formData.examStatus as any,
                 ieltsScore: res.data.ielts_toefl_score?.toString() || "",
                 greScore: res.data.gre_gmat_score?.toString() || "",
             });

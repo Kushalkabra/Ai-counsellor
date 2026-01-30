@@ -48,6 +48,10 @@ const ApplicationsPage = () => {
 
   useEffect(() => {
     if (activeUni) {
+      // Reset states when switching universities to prevent stale data
+      setSopContent(null);
+      setStrategyPoints([]);
+
       const fetchData = async () => {
         setLoadingDocs(true);
         setLoadingStrategy(true);

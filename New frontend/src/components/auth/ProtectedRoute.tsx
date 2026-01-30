@@ -8,7 +8,7 @@ interface ProtectedRouteProps {
 }
 
 export const ProtectedRoute = ({ children, requireOnboarding = true }: ProtectedRouteProps) => {
-    const { token, onboardingCompleted, isLoading, isAuthenticated: contextAuth } = useApp();
+    const { token, onboardingCompleted, isLoading, userProfile, isAuthenticated: contextAuth } = useApp();
     const location = useLocation();
 
     // Debugging to see what's happening during access
@@ -19,7 +19,9 @@ export const ProtectedRoute = ({ children, requireOnboarding = true }: Protected
         path: location.pathname
     });
 
-    if (isLoading) {
+    // If data is loading or we have a token but no profile yet, show loader
+    // to prevent flashing wrong states (like onboarding)
+    if (isLoading || (!!token && !userProfile)) {
         return (
             <div className="min-h-screen bg-background flex items-center justify-center">
                 <Loader2 className="h-8 w-8 animate-spin text-primary" />

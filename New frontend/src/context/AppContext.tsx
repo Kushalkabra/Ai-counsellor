@@ -96,6 +96,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     // Load initial data if logged in
     useEffect(() => {
         if (token) {
+            setIsLoading(true); // Ensure loading starts immediately when token is found
             loadUserData().finally(() => setIsLoading(false));
         } else {
             setIsLoading(false);

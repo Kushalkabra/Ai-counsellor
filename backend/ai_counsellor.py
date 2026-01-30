@@ -103,17 +103,6 @@ Context-aware guidance:
 {user_message}
 """
 
-==== GUIDELINES ====
-- ALWAYS use the ID provided in the AVAILABLE UNIVERSITIES list.
-- If the user says 'Add this to my list' or 'Interested in X', use shortlist_university.
-- If the user says 'I want to apply here' or 'Lock this', use lock_university.
-- You can only LOCK one university at a time.
-- If the user is just asking questions, use action: {{"type": "none", "payload": {{}}}}.
-
-==== USER INPUT ====
-{user_message}
-"""
-
         # 3. Call AI
         try:
             response_text = self._call_llm(system_prompt)

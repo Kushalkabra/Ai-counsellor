@@ -36,6 +36,13 @@ try:
 except Exception as e:
     print(f"Migration note: {e}")
 
+# Seed database if empty
+from seed_db import seed_universities
+try:
+    seed_universities()
+except Exception as e:
+    print(f"Seed note: {e}")
+
 app = FastAPI(title="AI Counsellor API", version="1.0.0")
 
 # CORS middleware

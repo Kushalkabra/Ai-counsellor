@@ -39,8 +39,17 @@ except Exception as e:
 app = FastAPI(title="AI Counsellor API", version="1.0.0")
 
 # CORS middleware
-raw_origins = os.getenv("ALLOWED_ORIGINS", "http://localhost:3000,http://localhost:3001,http://localhost:5173,http://localhost:8080")
-allowed_origins = [origin.strip().rstrip("/") for origin in raw_origins.split(",") if origin.strip()]
+# CORS middleware
+raw_origins = os.getenv("ALLOWED_ORIGINS", "http://localhost:3000,http://localhost:3001,http://localhost:5173,http://localhost:8080").split(",")
+allowed_origins = []
+for origin in raw_origins:
+    o = origin.strip().rstrip("/")
+    if o:
+        allowed_origins.append(o)
+        # If user forgot http/https, add both automatically
+        if not o.startswith("http"):
+            allowed_origins.append(f"https://{o}")
+            allowed_origins.append(f"http://{o}")
 
 app.add_middleware(
     CORSMiddleware,

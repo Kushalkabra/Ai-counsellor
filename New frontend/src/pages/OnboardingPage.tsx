@@ -57,6 +57,7 @@ const OnboardingPage = () => {
     const [currentAiQuestion, setCurrentAiQuestion] = useState(0);
     const [aiInput, setAiInput] = useState("");
     const [isTyping, setIsTyping] = useState(false);
+    const [isAIFinished, setIsAIFinished] = useState(false);
     const chatScrollRef = useRef<HTMLDivElement>(null);
 
     const [formData, setFormData] = useState({
@@ -117,6 +118,7 @@ const OnboardingPage = () => {
                 setCurrentAiQuestion(nextIndex);
                 setChatMessages(prev => [...prev, { role: 'ai', content: AI_QUESTIONS[nextIndex].question }]);
             } else {
+                setIsAIFinished(true);
                 setChatMessages(prev => [...prev, {
                     role: 'ai',
                     content: "Excellent! I've collected all the information I need to build your profile. Click 'Finish Setup' below to enter your dashboard!"
@@ -381,8 +383,8 @@ const OnboardingPage = () => {
                                         </div>
                                     ) : null}
 
-                                    {currentAiQuestion === AI_QUESTIONS.length - 1 && chatMessages[chatMessages.length - 1]?.role === 'ai' && !isTyping ? (
-                                        <Button variant="gradient" className="w-full h-12 rounded-xl shadow-lg" onClick={handleSubmit} disabled={loading}>
+                                    {isAIFinished && !isTyping ? (
+                                        <Button variant="gradient" className="w-full h-12 rounded-xl shadow-lg border-2 border-primary/20 animate-pulse" onClick={handleSubmit} disabled={loading}>
                                             {loading ? <Loader2 className="h-5 w-5 animate-spin mr-2" /> : "Finish Setup & Enter Dashboard"}
                                             {!loading && <Check className="ml-2 h-5 w-5" />}
                                         </Button>

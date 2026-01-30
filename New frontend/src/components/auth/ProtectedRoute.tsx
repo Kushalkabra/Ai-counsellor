@@ -35,13 +35,15 @@ export const ProtectedRoute = ({ children, requireOnboarding = true }: Protected
         return <Navigate to="/login" state={{ from: location }} replace />;
     }
 
-    // If onboarding is required but not completed
-    if (requireOnboarding && onboardingCompleted === false) {
+    // If onboarding is required (default for most pages)
+    if (requireOnboarding && !onboardingCompleted) {
+        console.log("ProtectedRoute - Onboarding required but not completed, redirecting to /onboarding");
         return <Navigate to="/onboarding" replace />;
     }
 
-    // If user is already onboarded but tries to access onboarding page
-    if (!requireOnboarding && onboardingCompleted === true) {
+    // If accessing onboarding specifically (requireOnboarding=false)
+    if (!requireOnboarding && onboardingCompleted) {
+        console.log("ProtectedRoute - User already onboarded, redirecting from /onboarding to /dashboard");
         return <Navigate to="/dashboard" replace />;
     }
 

@@ -5,6 +5,13 @@
       <meta charset="UTF-8" />
       <meta name="viewport" content="width=device-width, initial-scale=1.0" />
       <title>AI Counsellor Web App UI</title>
+      <script>
+        // Proactive "Wake-up" ping for Render free tier backend
+        // This starts the 50s cold-start timer as soon as the user hits the landing page
+        try {
+          fetch('https://ai-counsellor-vur1.onrender.com/').catch(() => {});
+        } catch (e) {}
+      </script>
     </head>
 
     <body>

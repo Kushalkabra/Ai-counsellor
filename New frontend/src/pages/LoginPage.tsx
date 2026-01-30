@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { GraduationCap, Mail, Lock, Eye, EyeOff, ArrowRight, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -16,6 +16,19 @@ const LoginPage = () => {
   const [password, setPassword] = useState("");
   const [fullName, setFullName] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [showWakingUp, setShowWakingUp] = useState(false);
+
+  useEffect(() => {
+    let timer: NodeJS.Timeout;
+    if (isLoading) {
+      timer = setTimeout(() => {
+        setShowWakingUp(true);
+      }, 5000);
+    } else {
+      setShowWakingUp(false);
+    }
+    return () => clearTimeout(timer);
+  }, [isLoading]);
 
   const { login, signup, googleLogin } = useApp();
   const navigate = useNavigate();
@@ -308,6 +321,23 @@ const LoginPage = () => {
                     <a href="#" className="text-sm text-primary hover:underline">
                       Forgot password?
                     </a>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+              <AnimatePresence>
+                {showWakingUp && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: "auto" }}
+                    exit={{ opacity: 0, height: 0 }}
+                    className="bg-primary/5 border border-primary/20 rounded-xl p-3 mb-4"
+                  >
+                    <p className="text-xs text-primary text-center leading-relaxed">
+                      Our AI servers are waking up from a deep sleep... 🚀
+                      <br />
+                      <span className="opacity-70">(Render free tier cold start takes ~50s. Thank you for your patience!)</span>
+                    </p>
                   </motion.div>
                 )}
               </AnimatePresence>

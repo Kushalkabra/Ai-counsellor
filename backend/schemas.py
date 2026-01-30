@@ -21,6 +21,9 @@ class Token(BaseModel):
     access_token: str
     token_type: str
 
+class GoogleAuthRequest(BaseModel):
+    credential: str
+
 # Onboarding schemas
 class OnboardingCreate(BaseModel):
     current_education_level: Optional[str] = None

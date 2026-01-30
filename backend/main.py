@@ -11,16 +11,30 @@ from dotenv import load_dotenv
 from database import SessionLocal, engine, Base
 from models import User, Onboarding, University, ShortlistedUniversity, LockedUniversity, Todo, ApplicationDocument
 from schemas import (
-    UserCreate, UserResponse, Token, OnboardingCreate, OnboardingResponse,
+    UserCreate, UserResponse, Token, OnboardingCreate, OnboardingResponse, GoogleAuthRequest,
     UniversityResponse, ShortlistRequest, LockRequest, TodoCreate, TodoResponse, TodoUpdate,
     AICounsellorMessage, AICounsellorResponse, ApplicationDocumentResponse, ApplicationDocumentUpdate
 )
 from auth import get_password_hash, verify_password, create_access_token, get_current_user
 from ai_counsellor import AICounsellorService
+from google.oauth2 import id_token
+from google.auth.transport import requests as google_requests
 
 load_dotenv()
 
 Base.metadata.create_all(bind=engine)
+
+# Ensure google_id column exists (Simple Migration)
+try:
+    with engine.connect() as conn:
+        # Check if google_id column exists
+        from sqlalchemy import text
+        conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS google_id VARCHAR UNIQUE"))
+        # Ensure hashed_password is nullable
+        conn.execute(text("ALTER TABLE users ALTER COLUMN hashed_password DROP NOT NULL"))
+        conn.commit()
+except Exception as e:
+    print(f"Migration note: {e}")
 
 app = FastAPI(title="AI Counsellor API", version="1.0.0")
 
@@ -89,6 +103,52 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = 
     
     access_token = create_access_token(data={"sub": user.email})
     return {"access_token": access_token, "token_type": "bearer"}
+
+@app.post("/api/auth/google", response_model=Token)
+async def google_auth(auth_data: GoogleAuthRequest, db: Session = Depends(get_db)):
+    try:
+        # Verify the Google token
+        client_id = os.getenv("GOOGLE_CLIENT_ID")
+        if not client_id:
+            raise HTTPException(status_code=500, detail="GOOGLE_CLIENT_ID not configured")
+            
+        idinfo = id_token.verify_oauth2_token(
+            auth_data.credential, 
+            google_requests.Request(), 
+            client_id
+        )
+
+        email = idinfo['email']
+        name = idinfo.get('name', email.split('@')[0])
+        google_id = idinfo['sub']
+
+        # Check if user exists
+        user = db.query(User).filter((User.email == email) | (User.google_id == google_id)).first()
+
+        if not user:
+            # Create new user for social login
+            user = User(
+                email=email,
+                full_name=name,
+                google_id=google_id,
+                hashed_password=None # No password for Google users
+            )
+            db.add(user)
+            db.commit()
+            db.refresh(user)
+        elif not user.google_id:
+            # Link existing email account to Google ID
+            user.google_id = google_id
+            db.commit()
+
+        access_token = create_access_token(data={"sub": user.email})
+        return {"access_token": access_token, "token_type": "bearer"}
+
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid Google token"
+        )
 
 @app.get("/api/auth/me", response_model=UserResponse)
 async def get_current_user_info(current_user: User = Depends(get_current_user)):

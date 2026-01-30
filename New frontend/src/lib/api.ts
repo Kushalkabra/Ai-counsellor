@@ -39,6 +39,7 @@ export const authAPI = {
         api.post('/api/auth/login', new URLSearchParams(data), {
             headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         }),
+    googleLogin: (credential: string) => api.post('/api/auth/google', { credential }),
     getMe: () => api.get('/api/auth/me'),
     deleteAccount: () => api.delete('/api/auth/me'),
 };

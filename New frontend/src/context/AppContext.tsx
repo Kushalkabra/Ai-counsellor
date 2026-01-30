@@ -74,6 +74,7 @@ interface AppContextType {
     loadUniversities: (search?: string, country?: string) => Promise<void>;
     loadUserData: () => Promise<void>;
     login: (email: string, pass: string) => Promise<void>;
+    googleLogin: (credential: string) => Promise<void>;
     signup: (data: any) => Promise<void>;
     logout: () => void;
     isLoading: boolean;
@@ -223,6 +224,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
         // User loading will happen via useEffect
     };
 
+    const googleLogin = async (credential: string) => {
+        const res = await authAPI.googleLogin(credential);
+        localStorage.setItem('token', res.data.access_token);
+        setToken(res.data.access_token);
+    };
+
     const signup = async (data: any) => {
         await authAPI.signup(data);
         await login(data.email, data.password);
@@ -357,6 +364,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
                 loadUniversities,
                 loadUserData,
                 login,
+                googleLogin,
                 signup,
                 logout,
                 isLoading,

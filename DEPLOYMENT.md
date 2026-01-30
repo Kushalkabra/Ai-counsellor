@@ -34,10 +34,10 @@ This guide will help you deploy the AI Counsellor application to production.
 
 1. **Deploy to Vercel**:
    - Create a new project on Vercel and connect your GitHub repository.
-   - **Root Directory**: `New frontend`
-   - **Framework Preset**: `Vite`
-   - **Build Command**: `npm run build`
-   - **Output Directory**: `dist`
+   - **Root Directory**: New frontend
+   - **Framework Preset**: Vite
+   - **Build Command**: npm run build
+   - **Output Directory**: dist
    - **Environment Variables**:
      - `VITE_API_URL`: Your Render Web Service URL (e.g., `https://ai-counsellor-api.onrender.com`).
 

@@ -25,7 +25,8 @@ Base.metadata.create_all(bind=engine)
 app = FastAPI(title="AI Counsellor API", version="1.0.0")
 
 # CORS middleware
-allowed_origins = os.getenv("ALLOWED_ORIGINS", "http://localhost:3000,http://localhost:3001,http://localhost:5173,http://localhost:8080").split(",")
+raw_origins = os.getenv("ALLOWED_ORIGINS", "http://localhost:3000,http://localhost:3001,http://localhost:5173,http://localhost:8080")
+allowed_origins = [origin.strip().rstrip("/") for origin in raw_origins.split(",") if origin.strip()]
 
 app.add_middleware(
     CORSMiddleware,
@@ -34,6 +35,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+print(f"DEBUG: CORS Allowed Origins: {allowed_origins}")
 
 # OAuth2 scheme is defined in auth.py
 from auth import oauth2_scheme

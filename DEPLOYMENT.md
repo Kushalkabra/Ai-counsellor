@@ -23,6 +23,7 @@ This guide will help you deploy the AI Counsellor application to production.
    - **Start Command**: `gunicorn main:app -w 4 -k uvicorn.workers.UvicornWorker --bind 0.0.0.0:$PORT`
    - **Environment Variables**:
      - `DATABASE_URL`: Your Render PostgreSQL URL.
+     - `PYTHON_VERSION`: `3.11.9` (Recommended for better compatibility with dependencies).
      - `SECRET_KEY`: A long random string.
      - `GROQ_API_KEY`: Your Groq API key.
      - `ALLOWED_ORIGINS`: `https://your-app-name.vercel.app` (Add yours).

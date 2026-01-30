@@ -339,8 +339,8 @@ async def get_universities(
     if country or search:
         # User specified a filter, fetch only that
         external_unis = await fetch_external_universities(country=country, name=search)
-    elif not local_unis:
-        # DB is empty and no search! Fetch some defaults so it doesn't look empty.
+    elif len(local_unis) < 5:
+        # DB has few results and no search! Fetch some defaults so it doesn't look empty.
         default_search_country = "United States"
         if onboarding and onboarding.preferred_countries:
             # Take the first country from comma separated list

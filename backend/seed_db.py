@@ -6,12 +6,7 @@ import random
 def seed_universities():
     db = SessionLocal()
     try:
-        # Check if already seeded
-        if db.query(University).count() > 0:
-            print("Database already has universities. Skipping seed.")
-            return
-
-        print("Seeding diverse university data...")
+        print("Checking for missing universities to seed...")
         
         universities = [
             # USA
@@ -47,6 +42,11 @@ def seed_universities():
         ]
 
         for u_data in universities:
+            # Check if university already exists
+            existing = db.query(University).filter(University.name == u_data["name"]).first()
+            if existing:
+                continue
+
             uni = University(
                 name=u_data["name"],
                 country=u_data["country"],

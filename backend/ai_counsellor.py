@@ -86,10 +86,12 @@ Context-aware guidance:
 ==== RESPONSE FORMAT (JSON ONLY) ====
 {{
   "message": "Your response in Markdown. Use university names, not IDs. Be concise but analytical. If recommending, explain WHY based on GPA/Budget (format currency nicely as $XX,XXX). If shortlisting/locking, confirm it clearly.",
-  "action": {{
-    "type": "shortlist_university | lock_university | create_task | none",
-    "payload": {{ ... }}
-  }},
+  "actions": [
+    {{
+      "type": "shortlist_university | lock_university | create_task | none",
+      "payload": {{ ... }}
+    }}
+  ],
   "reasoning": "Brief internal logic for your decision"
 }}
 
@@ -114,13 +116,13 @@ Context-aware guidance:
             # Fallback for LLM failure
             return {
                 "message": f"I'm having trouble thinking right now. Error: {str(e)}",
-                "action": None,
+                "actions": [],
                 "reasoning": "LLM Failure",
                 "updated_stage": current_stage
             }
             
         # 5. Execute Action
-        action_result = self._execute_action(parsed_response.get("action"), current_stage, db, current_user)
+        self._execute_actions(parsed_response.get("actions", []), current_stage, db, current_user)
         
         # 6. Fetch Updated State
         updated_state = self._get_updated_state(db, current_user)
@@ -128,7 +130,7 @@ Context-aware guidance:
         # 7. Construct Final Response
         return {
             "message": parsed_response.get("message"),
-            "action": parsed_response.get("action"),
+            "actions": parsed_response.get("actions"),
             "reasoning": parsed_response.get("reasoning"),
             **updated_state # Merges updated lists
         }
@@ -180,54 +182,62 @@ Context-aware guidance:
             # Fallback if invalid JSON
             return {
                 "message": raw_text,
-                "action": {"type": "none", "payload": {}},
+                "actions": [{"type": "none", "payload": {}}],
                 "reasoning": "Failed to parse structured response"
             }
 
-    def _execute_action(self, action: Dict[str, Any], stage: str, db: Session, user: User):
-        """Executes the action on the database"""
-        if not action or action.get("type") == "none":
+    def _execute_actions(self, actions: List[Dict[str, Any]], stage: str, db: Session, user: User):
+        """Executes a list of actions on the database"""
+        if not actions:
             return
+
+        # Ensure actions is a list (handle legacy singular format if LLM messes up)
+        if isinstance(actions, dict):
+            actions = [actions]
             
-        action_type = action.get("type")
-        payload = action.get("payload", {})
-        
-        # STAGE ENFORCEMENT
-        if action_type == "shortlist_university":
-            # Allowed in DISCOVERY
-            # Logic: Add to shortlist
-            uni_id = payload.get("university_id")
-            if uni_id:
-                existing = db.query(ShortlistedUniversity).filter_by(user_id=user.id, university_id=uni_id).first()
-                if not existing:
-                    db.add(ShortlistedUniversity(user_id=user.id, university_id=uni_id))
-                    db.commit()
-
-        elif action_type == "lock_university":
-            # Allowed in FINALIZATION
-            uni_id = payload.get("university_id")
-            if uni_id:
-                 # Check if shortlisted first (implied logic usually)
-                existing_lock = db.query(LockedUniversity).filter_by(user_id=user.id).first()
-                if not existing_lock:
-                    db.add(LockedUniversity(user_id=user.id, university_id=uni_id))
-                    # Also ensure it is shortlisted
-                    short = db.query(ShortlistedUniversity).filter_by(user_id=user.id, university_id=uni_id).first()
-                    if not short:
+        for action in actions:
+            if not action or action.get("type") == "none":
+                continue
+                
+            action_type = action.get("type")
+            payload = action.get("payload", {})
+            
+            # STAGE ENFORCEMENT & LOGIC
+            if action_type == "shortlist_university":
+                # Allowed in DISCOVERY
+                # Logic: Add to shortlist
+                uni_id = payload.get("university_id")
+                if uni_id:
+                    existing = db.query(ShortlistedUniversity).filter_by(user_id=user.id, university_id=uni_id).first()
+                    if not existing:
                         db.add(ShortlistedUniversity(user_id=user.id, university_id=uni_id))
-                    
-                    # Trigger auto-tasks
-                    from services import generate_application_todos
-                    generate_application_todos(user.id, uni_id, db)
-                    db.commit()
+                        db.commit()
 
-        elif action_type == "create_task":
-             # Allowed in PREPARATION
-             title = payload.get("title")
-             desc = payload.get("description", "")
-             if title:
-                 db.add(Todo(user_id=user.id, title=title, description=desc))
-                 db.commit()
+            elif action_type == "lock_university":
+                # Allowed in FINALIZATION
+                uni_id = payload.get("university_id")
+                if uni_id:
+                     # Check if shortlisted first (implied logic usually)
+                    existing_lock = db.query(LockedUniversity).filter_by(user_id=user.id).first()
+                    if not existing_lock:
+                        db.add(LockedUniversity(user_id=user.id, university_id=uni_id))
+                        # Also ensure it is shortlisted
+                        short = db.query(ShortlistedUniversity).filter_by(user_id=user.id, university_id=uni_id).first()
+                        if not short:
+                            db.add(ShortlistedUniversity(user_id=user.id, university_id=uni_id))
+                        
+                        # Trigger auto-tasks
+                        from services import generate_application_todos
+                        generate_application_todos(user.id, uni_id, db)
+                        db.commit()
+
+            elif action_type == "create_task":
+                 # Allowed in PREPARATION
+                 title = payload.get("title")
+                 desc = payload.get("description", "")
+                 if title:
+                     db.add(Todo(user_id=user.id, title=title, description=desc))
+                     db.commit()
 
     async def generate_sop(self, user_profile: Onboarding, university: University) -> str:
         """Generates a tailored Statement of Purpose"""

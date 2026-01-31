@@ -269,7 +269,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
         try {
             await universityAPI.shortlist(id);
-            // Refresh to get correct server state if needed
+            // Refresh to get correct server state and avoid race conditions
+            await loadUniversities();
         } catch (e) {
             console.error("Shortlist failed", e);
             // Revert

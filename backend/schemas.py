@@ -124,7 +124,7 @@ class AIAction(BaseModel):
 
 class AICounsellorResponse(BaseModel):
     message: str
-    action: Optional[AIAction] = None
+    actions: Optional[List[AIAction]] = None
     reasoning: Optional[str] = None
     # System state updates for frontend sync
     updated_stage: Optional[str] = None

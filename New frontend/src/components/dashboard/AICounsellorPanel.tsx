@@ -112,9 +112,17 @@ export const AICounsellorPanel = () => {
       speakResponse(res.data.message);
 
       // Handle Agentic Actions
-      if (res.data.action && res.data.action.type !== 'none') {
-        console.log("AI took action:", res.data.action);
-        // Refresh the global state to reflect the action (shortlist/lock/task)
+      if (res.data.actions && res.data.actions.length > 0) {
+        console.log("AI took actions:", res.data.actions);
+        // Refresh the global state to reflect the actions (shortlist/lock/task)
+        // We use a timeout to ensure backend commit propagation
+        setTimeout(() => {
+          loadUserData();
+          loadUniversities();
+        }, 500);
+      } else if (res.data.action && res.data.action.type !== 'none') {
+        // Fallback for legacy format if any
+        console.log("AI took action (legacy):", res.data.action);
         setTimeout(() => {
           loadUserData();
           loadUniversities();

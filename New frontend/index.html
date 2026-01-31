@@ -1,22 +1,26 @@
+<!DOCTYPE html>
+<html lang="en">
 
-  <!DOCTYPE html>
-  <html lang="en">
-    <head>
-      <meta charset="UTF-8" />
-      <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-      <title>AI Counsellor Web App UI</title>
-      <script>
-        // Proactive "Wake-up" ping for Render free tier backend
-        // This starts the 50s cold-start timer as soon as the user hits the landing page
-        try {
-          fetch('https://ai-counsellor-vur1.onrender.com/').catch(() => {});
-        } catch (e) {}
-      </script>
-    </head>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AI Counsellor Web App UI</title>
+  <script>
+    // Proactive "Wake-up" ping for Render free tier backend
+    // This starts the 50s cold-start timer as soon as the user hits the landing page
+    (function () {
+      const API_URL = 'https://ai-counsellor-vur1.onrender.com';
+      const ping = () => fetch(API_URL).catch(() => { });
+      ping();
+      // Retry once after 2 seconds just in case network was busy
+      setTimeout(ping, 2000);
+    })();
+  </script>
+</head>
 
-    <body>
-      <div id="root"></div>
-      <script type="module" src="/src/main.tsx"></script>
-    </body>
-  </html>
-  
+<body>
+  <div id="root"></div>
+  <script type="module" src="/src/main.tsx"></script>
+</body>
+
+</html>

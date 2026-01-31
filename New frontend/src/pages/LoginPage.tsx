@@ -23,7 +23,7 @@ const LoginPage = () => {
     if (isLoading) {
       timer = setTimeout(() => {
         setShowWakingUp(true);
-      }, 5000);
+      }, 3000);
     } else {
       setShowWakingUp(false);
     }

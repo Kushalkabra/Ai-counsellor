@@ -181,9 +181,23 @@ async def delete_account(
     db: Session = Depends(get_db)
 ):
     """Permanently delete user account and all associated data"""
-    db.delete(current_user)
-    db.commit()
-    return {"message": "Account deleted successfully"}
+    try:
+        # Manual cascade delete to ensure everything goes
+        # Import models here to avoid circular dependencies if any, though they are imported at top usually
+        from models import Onboarding, ShortlistedUniversity, LockedUniversity, Todo, ApplicationDocument
+        
+        db.query(ApplicationDocument).filter(ApplicationDocument.user_id == current_user.id).delete()
+        db.query(Todo).filter(Todo.user_id == current_user.id).delete()
+        db.query(LockedUniversity).filter(LockedUniversity.user_id == current_user.id).delete()
+        db.query(ShortlistedUniversity).filter(ShortlistedUniversity.user_id == current_user.id).delete()
+        db.query(Onboarding).filter(Onboarding.user_id == current_user.id).delete()
+        
+        db.delete(current_user)
+        db.commit()
+        return {"message": "Account deleted successfully"}
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Failed to delete account: {str(e)}")
 
 # Onboarding endpoints
 @app.post("/api/onboarding", response_model=OnboardingResponse)

@@ -419,11 +419,6 @@ const ApplicationsPage = () => {
                             ))}
                           </div>
                         </div>
-                        <div className="mt-8 pt-6 border-t border-border/50">
-                          <Button variant="outline" className="w-full text-xs h-9 rounded-xl">
-                            Download Guide (PDF)
-                          </Button>
-                        </div>
                       </div>
 
                       {/* AI SOP Draft Section */}

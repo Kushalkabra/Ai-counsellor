@@ -10,7 +10,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { countryImages } from "@/lib/constants";
 
 const ApplicationsPage = () => {
-  const { universities, userProfile } = useApp();
+  const { universities, userProfile, unlockUniversity } = useApp();
   const lockedUniversities = universities.filter(u => u.isLocked);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
@@ -257,13 +257,26 @@ const ApplicationsPage = () => {
                       <div>
                         <p className="text-primary font-medium text-xs lg:text-sm mb-1">Preparing Application for</p>
                         <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-1">{activeUni.name}</h2>
-                        <div className="flex items-center gap-3 text-sm text-muted-foreground">
+                        <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
                           <span className="flex items-center gap-1">
                             <FileText className="h-3.5 w-3.5" />
                             {userProfile?.targetIntake || "2024"} Intake
                           </span>
                           <span>•</span>
                           <span className="truncate">{userProfile?.degree || "Master's"}</span>
+
+                          <Button
+                            variant="destructive"
+                            size="sm"
+                            className="h-6 text-xs px-2 ml-2 bg-destructive/10 text-destructive hover:bg-destructive/20 border border-destructive/20"
+                            onClick={() => {
+                              if (window.confirm(`Are you sure you want to unlock ${activeUni.name}? This will remove it from your active application list.`)) {
+                                unlockUniversity(activeUni.id);
+                              }
+                            }}
+                          >
+                            Unlock
+                          </Button>
                         </div>
                       </div>
                     </div>

@@ -29,6 +29,12 @@ export const AICounsellorPanel = () => {
   const [isListening, setIsListening] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const recognitionRef = useRef<any>(null);
+  const isVoiceEnabledRef = useRef(false);
+
+  // Sync ref with state
+  useEffect(() => {
+    isVoiceEnabledRef.current = isVoiceEnabled;
+  }, [isVoiceEnabled]);
 
   // Initialize Speech Recognition
   useEffect(() => {
@@ -44,8 +50,8 @@ export const AICounsellorPanel = () => {
         setInput(transcript);
         setIsListening(false);
 
-        // Automatically send if in voice session
-        if (isVoiceEnabled && transcript.trim()) {
+        // Automatically send if in voice session (check ref for latest state)
+        if (isVoiceEnabledRef.current && transcript.trim()) {
           handleSend(transcript);
         }
       };
@@ -63,7 +69,7 @@ export const AICounsellorPanel = () => {
 
   // Text to Speech logic
   const speakResponse = (text: string) => {
-    if (!isVoiceEnabled || !('speechSynthesis' in window)) return;
+    if (!isVoiceEnabledRef.current || !('speechSynthesis' in window)) return;
 
     // Stop any existing speech
     window.speechSynthesis.cancel();
@@ -74,8 +80,8 @@ export const AICounsellorPanel = () => {
     utterance.volume = 1.0;
 
     utterance.onend = () => {
-      // Re-activate listening after AI finishes speaking
-      if (isVoiceEnabled) {
+      // Re-activate listening after AI finishes speaking (check ref for latest state)
+      if (isVoiceEnabledRef.current) {
         setTimeout(() => toggleListening(), 500);
       }
     };
@@ -200,8 +206,16 @@ export const AICounsellorPanel = () => {
               size="sm"
               className={`h-8 px-2 rounded-lg gap-2 text-xs font-medium transition-all ${isVoiceEnabled ? 'bg-primary/10 text-primary border-primary/20' : 'text-muted-foreground'}`}
               onClick={() => {
-                setIsVoiceEnabled(!isVoiceEnabled);
-                if (isVoiceEnabled) window.speechSynthesis.cancel();
+                const nextValue = !isVoiceEnabled;
+                setIsVoiceEnabled(nextValue);
+                if (!nextValue) {
+                  // If disabling: kill speech and mic immediately
+                  window.speechSynthesis.cancel();
+                  if (recognitionRef.current) {
+                    recognitionRef.current.stop();
+                    setIsListening(false);
+                  }
+                }
               }}
             >
               {isVoiceEnabled ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4" />}

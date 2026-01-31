@@ -77,8 +77,8 @@ Context-aware guidance:
 ==== AVAILABLE ACTIONS (USE SPARINGLY BUT DECISIVELY) ====
 1. shortlist_university: Save a university to the student's list. 
    Payload: {{"university_id": <int>}}
-2. lock_university: Set the final university for application. Only one can be locked at a time.
-   Payload: {{"university_id": <int>}}
+80: 2. lock_university: Set a university as a final application target. You can lock multiple universities if the student wants to apply to several.
+81:    Payload: {{"university_id": <int>}}
 3. create_task: Add a custom to-do for the student.
    Payload: {{"title": "<string>", "description": "<string>"}}
 4. none: Use this ONLY if you are just answering a general question without needing a system action.
@@ -217,19 +217,25 @@ Context-aware guidance:
                 # Allowed in FINALIZATION
                 uni_id = payload.get("university_id")
                 if uni_id:
-                     # Check if shortlisted first (implied logic usually)
-                    existing_lock = db.query(LockedUniversity).filter_by(user_id=user.id).first()
-                    if not existing_lock:
-                        db.add(LockedUniversity(user_id=user.id, university_id=uni_id))
-                        # Also ensure it is shortlisted
-                        short = db.query(ShortlistedUniversity).filter_by(user_id=user.id, university_id=uni_id).first()
-                        if not short:
-                            db.add(ShortlistedUniversity(user_id=user.id, university_id=uni_id))
-                        
-                        # Trigger auto-tasks
-                        from services import generate_application_todos
-                        generate_application_todos(user.id, uni_id, db)
-                        db.commit()
+                     # Check if ALREADY locked (this specific one)
+                    existing_lock = db.query(LockedUniversity).filter_by(user_id=user.id, university_id=uni_id).first()
+                    
+                    if existing_lock:
+                         # Already locked, do nothing
+                        continue
+                    
+                    # Add new lock (Multiple Auto-lock allowed now)
+                    db.add(LockedUniversity(user_id=user.id, university_id=uni_id))
+                    
+                    # Also ensure it is shortlisted
+                    short = db.query(ShortlistedUniversity).filter_by(user_id=user.id, university_id=uni_id).first()
+                    if not short:
+                        db.add(ShortlistedUniversity(user_id=user.id, university_id=uni_id))
+                    
+                    # Trigger auto-tasks
+                    from services import generate_application_todos
+                    generate_application_todos(user.id, uni_id, db)
+                    db.commit()
 
             elif action_type == "create_task":
                  # Allowed in PREPARATION

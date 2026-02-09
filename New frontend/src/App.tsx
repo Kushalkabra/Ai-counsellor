@@ -12,6 +12,7 @@ import ShortlistPage from "./pages/ShortlistPage";
 import ApplicationsPage from "./pages/ApplicationsPage";
 import OnboardingPage from "./pages/OnboardingPage";
 import ProfilePage from "./pages/ProfilePage";
+import UniversityDetailsPage from "./pages/UniversityDetailsPage";
 import NotFound from "./pages/NotFound";
 import { ProtectedRoute } from "./components/auth/ProtectedRoute";
 import { useEffect } from "react";
@@ -69,6 +70,12 @@ const App = () => {
               <Route path="/profile" element={
                 <ProtectedRoute>
                   <ProfilePage />
+                </ProtectedRoute>
+              } />
+
+              <Route path="/university/:id" element={
+                <ProtectedRoute>
+                  <UniversityDetailsPage />
                 </ProtectedRoute>
               } />
 

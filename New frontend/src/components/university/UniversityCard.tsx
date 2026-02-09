@@ -3,8 +3,10 @@ import { MapPin, DollarSign, TrendingUp, Star, ArrowRight } from "lucide-react";
 import { countryImages } from "@/lib/constants";
 import { Button } from "@/components/ui/button";
 import { motion } from "framer-motion";
+import { Link } from "react-router-dom";
 
 interface UniversityCardProps {
+  id: string | number;
   name: string;
   country: string;
   image: string;
@@ -25,6 +27,7 @@ const categoryStyles = {
 };
 
 export const UniversityCard = ({
+  id,
   name,
   country,
   image,
@@ -123,10 +126,12 @@ export const UniversityCard = ({
         {/* Actions */}
         <div className="flex gap-2">
           <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} className="flex-1">
-            <Button variant="outline" size="sm" className="w-full">
-              View Details
-              <ArrowRight className="h-3.5 w-3.5 ml-1" />
-            </Button>
+            <Link to={`/university/${id}`}>
+              <Button variant="outline" size="sm" className="w-full">
+                View Details
+                <ArrowRight className="h-3.5 w-3.5 ml-1" />
+              </Button>
+            </Link>
           </motion.div>
           <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} className="flex-1">
             <Button

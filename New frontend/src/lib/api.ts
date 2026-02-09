@@ -67,6 +67,8 @@ export const universityAPI = {
     unlock: (university_id: number | string) =>
         api.delete(`/api/universities/lock/${university_id}`),
     getLocked: () => api.get('/api/universities/locked'),
+    getDetails: (university_id: number | string) =>
+        api.get(`/api/universities/${university_id}/details`),
 };
 
 // AI Counsellor APIs

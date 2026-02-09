@@ -86,6 +86,47 @@ class UniversityResponse(BaseModel):
     class Config:
         from_attributes = True
 
+class UniversityRequirement(BaseModel):
+    name: str
+    status: str  # met, partial, pending
+
+class UniversityDeadline(BaseModel):
+    intake: str
+    deadline: str
+
+class UniversityMatch(BaseModel):
+    status: str  # Dream, Target, Safe
+    chance: str  # Low, Medium, High
+    reason: str
+
+class UniversityDetailResponse(BaseModel):
+    # Basic Info
+    id: Union[int, str]
+    name: str
+    country: str
+    city: Optional[str] = "Main Campus"
+    degree_type: Optional[str]
+    field_of_study: Optional[str]
+    tuition_fee: Optional[float]
+    tuition_display: Optional[str] = None
+    acceptance_rate: Optional[float]
+    acceptance_rate_display: Optional[str] = None
+    ranking: Optional[int]
+    description: Optional[str]
+    founded: Optional[int] = 1900
+    students: Optional[str] = "10,000+"
+    
+    # AI Generated Content
+    programs: List[str]
+    requirements: List[UniversityRequirement]
+    personal_match_analysis: UniversityMatch
+    ai_insights: List[str]
+    deadlines: List[UniversityDeadline]
+    campus_culture: str
+    
+    class Config:
+        from_attributes = True
+
 class ShortlistRequest(BaseModel):
     university_id: Union[int, str]
 
@@ -124,7 +165,7 @@ class AIAction(BaseModel):
 
 class AICounsellorResponse(BaseModel):
     message: str
-    actions: Optional[List[AIAction]] = None
+    action: Optional[AIAction] = None
     reasoning: Optional[str] = None
     # System state updates for frontend sync
     updated_stage: Optional[str] = None

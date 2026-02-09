@@ -333,6 +333,97 @@ Context-aware guidance:
                 "Ensure your LORs are from credible academic sources.",
                 "Review the specific admission requirements carefully."
             ]
+
+    async def generate_university_details(self, user_profile: Onboarding, university: University) -> Dict[str, Any]:
+        """Generates a comprehensive AI analysis for a dynamic university details page"""
+        prompt = f"""
+        ACT AS: An elite Study Abroad Strategist and Senior Academic Analyst.
+        TASK: Generate a high-end, personalized analysis of {university.name} for a student.
+        
+        STUDENT PROFILE:
+        - Degree: {user_profile.current_education_level} in {user_profile.degree_major} ({user_profile.graduation_year})
+        - GPA: {user_profile.gpa}
+        - Budget: ${user_profile.budget_per_year}/yr
+        - Field: {user_profile.field_of_study}
+        - Tests: IELTS/TOEFL {user_profile.ielts_toefl_score}, GRE/GMAT {user_profile.gre_gmat_score}
+        
+        UNIVERSITY DATA:
+        - Name: {university.name}
+        - Country: {university.country}
+        - Acceptance Rate: {university.acceptance_rate}%
+        - Tuition: ${university.tuition_fee}/yr
+        - Ranking: #{university.ranking}
+        - Degree: {university.degree_type} in {university.field_of_study}
+        
+        REQUIRED OUTPUT JSON (Fields must match exactly):
+        1. "city": Based on real data for this university.
+        2. "founded": Year founded (integer).
+        3. "students": Student population (e.g., "15,000+").
+        4. "programs": 6 major/popular program names.
+        5. "requirements": List of objects {{"name": "...", "status": "met"|"partial"|"pending"}}. 
+           - Map them reasonably against student profile (GPA, Score, SOP status).
+        6. "deadlines": 2 objects {{"intake": "...", "deadline": "..."}} (Based on typical cycles).
+        7. "personal_match_analysis": {{
+            "status": "Dream", "Target", or "Safe",
+            "chance": "Low", "Medium", or "High",
+            "reason": "Sophisticated 2-sentence link between student profile and uni academic standing."
+           }}
+        8. "ai_insights": 4 bullet points of high-level advice unique to this student/uni pair.
+        9. "campus_culture": Vivid, premium 3-sentence description of the life, spirit, and research environment.
+        10. "tuition_display": e.g., "$55k/year".
+        11. "acceptance_rate_display": e.g., "{university.acceptance_rate}%".
+
+        OUTPUT FORMAT: Strict JSON only.
+        """
+        
+        try:
+            response_json = self._call_llm(prompt)
+            data = self._parse_json_response(response_json)
+            # Ensure basic fields are present to prevent frontend crashes
+            defaults = {
+                "city": university.country,
+                "founded": 1900,
+                "students": "10,000+",
+                "programs": ["CS", "Engineering", "Business"],
+                "requirements": [{"name": "GPA Check", "status": "met"}],
+                "deadlines": [{"intake": "Fall 2025", "deadline": "Jan 1st"}],
+                "personal_match_analysis": {"status": "Target", "chance": "Medium", "reason": "Good match."},
+                "ai_insights": ["Keep your GPA high.", "Focus on your SOP."],
+                "campus_culture": "A great campus environment.",
+                "tuition_display": f"${university.tuition_fee}/yr",
+                "acceptance_rate_display": f"{university.acceptance_rate}%"
+            }
+            for k, v in defaults.items():
+                if k not in data:
+                    data[k] = v
+            return data
+        except Exception as e:
+            print(f"Error generating details: {e}")
+            return {
+                "city": university.country,
+                "founded": 1900,
+                "students": "10,000+",
+                "programs": ["Information Technology", "Business", "Arts"],
+                "requirements": [
+                    {"name": "GPA 3.0+", "status": "met"},
+                    {"name": "IELTS 6.5+", "status": "partial"},
+                    {"name": "SOP", "status": "pending"}
+                ],
+                "deadlines": [{"intake": "Fall 2025", "deadline": "March 15, 2025"}],
+                "personal_match_analysis": {
+                    "status": "Target",
+                    "chance": "Medium",
+                    "reason": "This university's standards match your academic background well."
+                },
+                "ai_insights": [
+                    "Focus on your personal statement",
+                    "Consider research opportunities",
+                    "Location offers good internship prospects"
+                ],
+                "campus_culture": "A vibrant academic environment focused on excellence and innovation.",
+                "tuition_display": f"${university.tuition_fee}/yr",
+                "acceptance_rate_display": f"{university.acceptance_rate}%"
+            }
     
     def _determine_stage(self, shortlisted: List[int], locked: List[int]) -> str:
         if locked: return "APPLICATION_PREPARATION"

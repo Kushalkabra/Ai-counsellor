@@ -271,6 +271,7 @@ const DiscoverPage = () => {
             {filteredUniversities.map((uni, index) => (
               <UniversityCard
                 key={uni.id}
+                id={uni.id}
                 name={uni.name}
                 country={uni.country}
                 image={uni.image || ""}

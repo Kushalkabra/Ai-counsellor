@@ -1,4 +1,4 @@
-import { Bell, User, Lock, Sparkles, MapPin, DollarSign, TrendingUp, Unlock, Menu, Trash2 } from "lucide-react";
+import { Bell, User, Lock, Sparkles, MapPin, DollarSign, TrendingUp, Unlock, Menu } from "lucide-react";
 import { useState } from "react";
 import { DashboardSidebar } from "@/components/dashboard/DashboardSidebar";
 import { Button } from "@/components/ui/button";
@@ -14,7 +14,7 @@ const categoryStyles = {
 };
 
 const ShortlistPage = () => {
-  const { universities, lockUniversity, unlockUniversity, shortlistUniversity } = useApp();
+  const { universities, lockUniversity, unlockUniversity } = useApp();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const shortlistedUniversities = universities.filter(u => u.isShortlisted);
 
@@ -134,47 +134,34 @@ const ShortlistPage = () => {
                         </div>
 
                         {/* Action */}
-                        <div className="flex flex-col sm:flex-row gap-2 flex-shrink-0">
-                          <Button
-                            variant="outline"
-                            className="bg-destructive/5 text-destructive border-destructive/20 hover:bg-destructive/10 hover:border-destructive/30"
-                            onClick={() => {
-                              if (window.confirm(`Remove ${uni.name} from your shortlist?`)) {
-                                shortlistUniversity(uni.id);
+                        <Button
+                          variant={uni.isLocked ? "outline" : "success"}
+                          className={cn(
+                            "flex-shrink-0",
+                            uni.isLocked && "border-success text-success hover:bg-success/10"
+                          )}
+                          onClick={() => {
+                            if (uni.isLocked) {
+                              if (window.confirm(`Are you sure you want to unlock ${uni.name}? This will remove your university-specific application guidance.`)) {
+                                unlockUniversity(uni.id);
                               }
-                            }}
-                          >
-                            <Trash2 className="h-4 w-4 mr-2" />
-                            Remove
-                          </Button>
-                          <Button
-                            variant={uni.isLocked ? "outline" : "success"}
-                            className={cn(
-                              uni.isLocked && "border-success text-success hover:bg-success/10"
-                            )}
-                            onClick={() => {
-                              if (uni.isLocked) {
-                                if (window.confirm(`Are you sure you want to unlock ${uni.name}? This will remove your university-specific application guidance.`)) {
-                                  unlockUniversity(uni.id);
-                                }
-                              } else {
-                                lockUniversity(uni.id);
-                              }
-                            }}
-                          >
-                            {uni.isLocked ? (
-                              <>
-                                <Unlock className="h-4 w-4 mr-1" />
-                                Unlock
-                              </>
-                            ) : (
-                              <>
-                                <Lock className="h-4 w-4 mr-1" />
-                                Lock University
-                              </>
-                            )}
-                          </Button>
-                        </div>
+                            } else {
+                              lockUniversity(uni.id);
+                            }
+                          }}
+                        >
+                          {uni.isLocked ? (
+                            <>
+                              <Unlock className="h-4 w-4 mr-1" />
+                              Unlock
+                            </>
+                          ) : (
+                            <>
+                              <Lock className="h-4 w-4 mr-1" />
+                              Lock University
+                            </>
+                          )}
+                        </Button>
                       </div>
 
                       {/* AI Insight */}

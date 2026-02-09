@@ -13,7 +13,7 @@ from database import SessionLocal, engine, Base
 from models import User, Onboarding, University, ShortlistedUniversity, LockedUniversity, Todo, ApplicationDocument
 from schemas import (
     UserCreate, UserResponse, Token, OnboardingCreate, OnboardingResponse, GoogleAuthRequest,
-    UniversityResponse, ShortlistRequest, LockRequest, TodoCreate, TodoResponse, TodoUpdate,
+    UniversityResponse, UniversityDetailResponse, ShortlistRequest, LockRequest, TodoCreate, TodoResponse, TodoUpdate,
     AICounsellorMessage, AICounsellorResponse, ApplicationDocumentResponse, ApplicationDocumentUpdate
 )
 from auth import get_password_hash, verify_password, create_access_token, get_current_user
@@ -181,23 +181,9 @@ async def delete_account(
     db: Session = Depends(get_db)
 ):
     """Permanently delete user account and all associated data"""
-    try:
-        # Manual cascade delete to ensure everything goes
-        # Import models here to avoid circular dependencies if any, though they are imported at top usually
-        from models import Onboarding, ShortlistedUniversity, LockedUniversity, Todo, ApplicationDocument
-        
-        db.query(ApplicationDocument).filter(ApplicationDocument.user_id == current_user.id).delete()
-        db.query(Todo).filter(Todo.user_id == current_user.id).delete()
-        db.query(LockedUniversity).filter(LockedUniversity.user_id == current_user.id).delete()
-        db.query(ShortlistedUniversity).filter(ShortlistedUniversity.user_id == current_user.id).delete()
-        db.query(Onboarding).filter(Onboarding.user_id == current_user.id).delete()
-        
-        db.delete(current_user)
-        db.commit()
-        return {"message": "Account deleted successfully"}
-    except Exception as e:
-        db.rollback()
-        raise HTTPException(status_code=500, detail=f"Failed to delete account: {str(e)}")
+    db.delete(current_user)
+    db.commit()
+    return {"message": "Account deleted successfully"}
 
 # Onboarding endpoints
 @app.post("/api/onboarding", response_model=OnboardingResponse)
@@ -642,6 +628,51 @@ async def get_locked_universities(
             })
     
     return result
+
+@app.get("/api/universities/{university_id}/details", response_model=UniversityDetailResponse)
+async def get_university_details(
+    university_id: Union[int, str],
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    # 1. Fetch University
+    actual_id = university_id
+    if isinstance(university_id, str) and university_id.startswith("ext:"):
+        uni_name = university_id.replace("ext:", "")
+        uni = db.query(University).filter(University.name == uni_name).first()
+        if not uni:
+             # If external and not in DB, we create a placeholder entry
+             from main_utils import get_or_create_university
+             uni = get_or_create_university(uni_name, "Unknown", db)
+        actual_id = uni.id
+    else:
+        uni = db.query(University).filter(University.id == actual_id).first()
+        
+    if not uni:
+        raise HTTPException(status_code=404, detail="University not found")
+        
+    # 2. Fetch User Profile
+    onboarding = db.query(Onboarding).filter(Onboarding.user_id == current_user.id).first()
+    if not onboarding:
+        raise HTTPException(status_code=400, detail="Please complete onboarding first")
+        
+    # 3. Generate AI Analysis
+    ai_service = AICounsellorService()
+    ai_details = await ai_service.generate_university_details(onboarding, uni)
+    
+    # 4. Construct response
+    return {
+        "id": university_id,
+        "name": uni.name,
+        "country": uni.country,
+        "degree_type": uni.degree_type,
+        "field_of_study": uni.field_of_study,
+        "tuition_fee": uni.tuition_fee,
+        "acceptance_rate": uni.acceptance_rate,
+        "ranking": uni.ranking,
+        "description": uni.description,
+        **ai_details
+    }
 
 
 # Todo endpoints
